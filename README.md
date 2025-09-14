@@ -76,10 +76,14 @@ npm run dev
 npm start
 ```
 
-## 🎯 GraphQL Endpoints
+## 🎯 API Endpoints
 
 - **GraphQL Playground**: http://localhost:4000/graphql
 - **GraphQL Endpoint**: http://localhost:4000/graphql
+- **REST API Documentation**: http://localhost:4000/api-docs
+- **REST API Base URL**: http://localhost:4000/api
+- **Health Check**: http://localhost:4000/api/health
+- **API Info**: http://localhost:4000/api
 
 ## 📊 Database Schema
 
@@ -130,7 +134,72 @@ Use JWT Bearer token in the Authorization header:
 Authorization: Bearer <jwt-token>
 ```
 
-## 📝 GraphQL Usage Examples
+## 📝 API Usage Examples
+
+### REST API Examples
+
+#### 1. User Registration
+```bash
+curl -X POST http://localhost:4000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "password123",
+    "name": "John Doe"
+  }'
+```
+
+#### 2. User Login
+```bash
+curl -X POST http://localhost:4000/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "user@example.com",
+    "password": "password123"
+  }'
+```
+
+#### 3. Create Event (Admin Only)
+```bash
+curl -X POST http://localhost:4000/api/events \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "name": "Tech Conference 2024",
+    "description": "Annual technology conference",
+    "maxQuantity": 100
+  }'
+```
+
+#### 4. Get Events with Pagination
+```bash
+curl "http://localhost:4000/api/events?limit=10&offset=0&isActive=true&search=tech"
+```
+
+#### 5. Lock Event for Editing
+```bash
+curl -X POST http://localhost:4000/api/events/EVENT_ID/lock \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+#### 6. Issue Voucher to User (Admin Only)
+```bash
+curl -X POST http://localhost:4000/api/vouchers/issue \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{
+    "eventId": "EVENT_ID_HERE",
+    "issuedTo": "user@example.com"
+  }'
+```
+
+#### 7. Use Voucher
+```bash
+curl -X POST http://localhost:4000/api/vouchers/VOUCHER_ID/use \
+  -H "Authorization: Bearer YOUR_JWT_TOKEN"
+```
+
+### GraphQL Usage Examples
 
 ### 1. User Registration
 ```graphql
@@ -370,7 +439,8 @@ query UserVouchers($issuedTo: String!) {
 ```
 src/
 ├── config/
-│   └── database.js          # MongoDB connection setup
+│   ├── database.js          # MongoDB connection setup
+│   └── swagger.js           # Swagger/OpenAPI configuration
 ├── models/
 │   ├── User.js             # User model with authentication
 │   ├── Event.js            # Event model with edit locking
@@ -381,12 +451,16 @@ src/
 │   ├── event.js            # Event management with locking
 │   ├── voucher.js          # Voucher management resolvers
 │   └── index.js            # Combined resolvers
+├── routes/
+│   ├── auth.js             # REST API authentication routes
+│   ├── events.js           # REST API event routes
+│   └── vouchers.js         # REST API voucher routes
 ├── schema/
 │   └── typeDefs.js         # GraphQL schema definitions
 ├── utils/
 │   ├── lockManager.js      # Edit locking system
 │   └── pagination.js       # Pagination utilities
-└── server.js               # Main Express server
+└── server.js               # Main Express server with GraphQL + REST
 ```
 
 ## 🔧 Key Features Explained
@@ -414,6 +488,26 @@ src/
 - Role-based access control
 - Input validation and sanitization
 - MongoDB injection prevention
+- CORS enabled for cross-origin requests
+- Bearer token authentication for protected routes
+
+## 📚 API Documentation
+
+### Swagger/OpenAPI Documentation
+The project includes comprehensive API documentation using Swagger/OpenAPI 3.0:
+
+- **Interactive Documentation**: http://localhost:4000/api-docs
+- **OpenAPI Spec**: Available at `/api-docs` endpoint
+- **Try It Out**: Test API endpoints directly from the documentation
+- **Authentication**: Built-in JWT token testing in Swagger UI
+
+### Documentation Features
+- Complete REST API documentation
+- Request/response schemas
+- Authentication examples
+- Error response documentation
+- Interactive testing interface
+- Code generation support
 
 ## 📈 Development Roadmap
 

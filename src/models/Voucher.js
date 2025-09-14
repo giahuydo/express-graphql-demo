@@ -47,10 +47,5 @@ voucherSchema.set('toJSON', {
   }
 });
 
-// Index for better query performance
-voucherSchema.index({ code: 1 });
-voucherSchema.index({ eventId: 1 });
-voucherSchema.index({ issuedTo: 1 });
-voucherSchema.index({ isUsed: 1 });
 
 module.exports = mongoose.model('Voucher', voucherSchema);

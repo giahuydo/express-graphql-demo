@@ -36,7 +36,7 @@ const userResolvers = {
       const token = req.headers.authorization;
       const decoded = getUserFromToken(token);
       
-      if (!decoded || decoded.role !== 'admin') {
+      if (!decoded || decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
@@ -52,7 +52,7 @@ const userResolvers = {
       }
 
       // Users can only view their own profile unless they're admin
-      if (decoded.userId !== id && decoded.role !== 'admin') {
+      if (decoded.userId !== id && decoded.role !== 'ADMIN') {
         throw new Error('Access denied');
       }
 

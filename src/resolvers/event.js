@@ -91,7 +91,7 @@ const eventResolvers = {
       }
 
       // Only admins can create events
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
@@ -117,7 +117,7 @@ const eventResolvers = {
       }
 
       // Only admins can update events
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
@@ -157,7 +157,7 @@ const eventResolvers = {
       }
 
       // Only admins can delete events
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
