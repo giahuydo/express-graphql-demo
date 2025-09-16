@@ -1,5 +1,6 @@
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
+const queueService = require('../services/queueService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 

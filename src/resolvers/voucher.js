@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const mongoose = require('mongoose');
 const Voucher = require('../models/Voucher');
 const Event = require('../models/Event');
+const queueService = require('../services/queueService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
@@ -13,6 +14,10 @@ const getUserFromToken = (token) => {
     return null;
   }
 };
+
+function genVoucherCode() {
+  return `VOUCHER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+}
 
 const voucherResolvers = {
   Query: {
@@ -84,7 +89,7 @@ const voucherResolvers = {
       }
 
       // Only admins can create vouchers
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
@@ -122,7 +127,7 @@ const voucherResolvers = {
       }
 
       // Only admins can update vouchers
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
@@ -157,7 +162,7 @@ const voucherResolvers = {
       }
 
       // Only admins can delete vouchers
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
@@ -204,59 +209,108 @@ const voucherResolvers = {
           { new: true, runValidators: true }
         ).populate('eventId');
 
+        // Add voucher used notification job to queue
+        try {
+          await queueService.addVoucherUsedNotificationJob({
+            code: updatedVoucher.code,
+            issuedTo: updatedVoucher.issuedTo,
+          });
+        } catch (notificationError) {
+          console.error('❌ Failed to queue voucher used notification:', notificationError);
+          // Don't fail voucher usage if notification fails
+        }
+
         return updatedVoucher;
       } catch (error) {
         throw new Error(`Voucher usage failed: ${error.message}`);
       }
     },
 
+    
     issueVoucherToUser: async (_, { input }, { req }) => {
-      const token = req.headers.authorization;
-      const decoded = getUserFromToken(token);
-      
-      if (!decoded) {
-        throw new Error('Authentication required');
-      }
+      const decoded = getUserFromToken(req.headers.authorization);
+      if (!decoded) throw new Error('Authentication required');
+      if (decoded.role !== 'ADMIN') throw new Error('Admin access required');
 
-      // Only admins can issue vouchers
-      if (decoded.role !== 'admin') {
-        throw new Error('Admin access required');
-      }
+      const session = await mongoose.startSession();
+      let event, voucherDoc;
 
       try {
-        // Check if event exists
-        const event = await Event.findById(input.eventId);
-        if (!event) {
-          throw new Error('Event not found');
-        }
+        await session.withTransaction(async () => {
+          // 1) Atomically + condition: chỉ inc nếu còn slot
+          event = await Event.findOneAndUpdate(
+            {
+              _id: input.eventId,
+              isActive: { $ne: false },
+              // chỉ tăng khi issuedCount < maxQuantity
+              $expr: { $lt: ['$issuedCount', '$maxQuantity'] }
+            },
+            { $inc: { issuedCount: 1 } },
+            { new: true, session }
+          );
 
-        // Check if event has available quantity
-        if (event.issuedCount >= event.maxQuantity) {
-          throw new Error('Event has reached maximum voucher limit');
-        }
+          if (!event) {
+            throw new Error('Event not found or no more voucher slots available');
+          }
 
-        // Generate unique voucher code
-        const voucherCode = `VOUCHER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+          // 2) Tạo voucher trong cùng transaction (retry nếu trùng code)
+          let attempts = 0;
+          while (attempts < 3) {
+            try {
+              const code = genVoucherCode();
+              const created = await Voucher.create([{
+                eventId: event._id,
+                code,
+                issuedTo: input.issuedTo,
+                isUsed: false
+              }], { session });
+              voucherDoc = created[0];
+              break;
+            } catch (e) {
+              if (e && e.code === 11000) {
+                attempts += 1; // duplicate key -> regen code
+                continue;
+              }
+              throw e;
+            }
+          }
 
-        const voucher = new Voucher({
-          eventId: input.eventId,
-          code: voucherCode,
-          issuedTo: input.issuedTo,
-          isUsed: false
+          if (!voucherDoc) {
+            // Không tạo được code unique sau 3 lần → fail transaction
+            throw new Error('Failed to generate unique voucher code');
+          }
         });
 
-        const saved = await voucher.save();
+        // 3) Ra ngoài transaction rồi mới queue mail (không block, không ảnh hưởng DB)
+        try {
+          await queueService.addVoucherEmailJob({
+            email: input.issuedTo,
+            name: input.issuedTo,
+            voucherCode: voucherDoc.code,
+            eventName: event.name,
+            eventDescription: event.description,
+          });
+        } catch (emailErr) {
+          console.error('❌ Failed to queue voucher email:', emailErr);
+          // không throw để không làm fail issuance
+        }
 
-        // Update event issued count
-        await Event.findByIdAndUpdate(input.eventId, {
-          $inc: { issuedCount: 1 }
-        });
-
-        return await Voucher.findById(saved._id).populate('eventId');
-      } catch (error) {
-        throw new Error(`Voucher issuance failed: ${error.message}`);
+        // 4) Trả về voucher đã populate
+        return await Voucher.findById(voucherDoc._id).populate('eventId');
+      } catch (err) {
+        // nếu có lỗi trong withTransaction thì đã auto abort
+        throw new Error(`Voucher issuance failed: ${err.message}`);
+      } finally {
+        session.endSession();
       }
     }
+
+
+
+
+
+
+    
   },
 
   Voucher: {

@@ -4,6 +4,7 @@ const Event = require('../models/Event');
 const Voucher = require('../models/Voucher');
 const { isEventLocked, requestEditLock, releaseEditLock, maintainEditLock } = require('../utils/lockManager');
 const { paginateModel } = require('../utils/pagination');
+const queueService = require('../services/queueService');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
 
@@ -21,6 +22,7 @@ const transformEvent = (event) => {
   if (!event) return null;
   
   return {
+    id: event.id ?? event._id?.toString(),
     ...event,
     availableQuantity: event.maxQuantity - event.issuedCount,
     isFullyIssued: event.issuedCount >= event.maxQuantity
@@ -90,11 +92,6 @@ const eventResolvers = {
         throw new Error('Authentication required');
       }
 
-      // Only admins can create events
-      if (decoded.role !== 'ADMIN') {
-        throw new Error('Admin access required');
-      }
-
       try {
         const event = new Event({
           ...input,
@@ -102,6 +99,18 @@ const eventResolvers = {
         });
         
         const saved = await event.save();
+        
+        // Add event created notification job to queue
+        try {
+          await queueService.addEventCreatedNotificationJob({
+            name: saved.name,
+            description: saved.description,
+          });
+        } catch (notificationError) {
+          console.error('❌ Failed to queue event created notification:', notificationError);
+          // Don't fail event creation if notification fails
+        }
+        
         return transformEvent(saved.toObject());
       } catch (error) {
         throw new Error(`Event creation failed: ${error.message}`);
@@ -142,6 +151,17 @@ const eventResolvers = {
           throw new Error('Event not found');
         }
 
+        // Add event updated notification job to queue
+        try {
+          await queueService.addEventUpdatedNotificationJob({
+            name: updated.name,
+            description: updated.description,
+          });
+        } catch (notificationError) {
+          console.error('❌ Failed to queue event updated notification:', notificationError);
+          // Don't fail event update if notification fails
+        }
+
         return transformEvent(updated);
       } catch (error) {
         throw new Error(`Event update failed: ${error.message}`);
@@ -174,6 +194,17 @@ const eventResolvers = {
         // Delete associated vouchers
         await Voucher.deleteMany({ eventId: id });
 
+        // Add event deleted notification job to queue
+        try {
+          await queueService.addEventDeletedNotificationJob({
+            name: deleted.name,
+            description: deleted.description,
+          });
+        } catch (notificationError) {
+          console.error('❌ Failed to queue event deleted notification:', notificationError);
+          // Don't fail event deletion if notification fails
+        }
+
         return transformEvent(deleted.toObject());
       } catch (error) {
         throw new Error(`Event deletion failed: ${error.message}`);
@@ -189,7 +220,7 @@ const eventResolvers = {
       }
 
       // Only admins can activate events
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 
@@ -219,7 +250,7 @@ const eventResolvers = {
       }
 
       // Only admins can deactivate events
-      if (decoded.role !== 'admin') {
+      if (decoded.role !== 'ADMIN') {
         throw new Error('Admin access required');
       }
 

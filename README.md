@@ -29,12 +29,17 @@ A modern Express.js application with GraphQL and Apollo Server, featuring simpli
 - **Atomic Operations**: Uses MongoDB sessions for data consistency
 - **Pagination**: Advanced pagination with search and filtering
 - **Race Condition Prevention**: Handles concurrent operations safely
+- **Queue System**: Background job processing with Redis and Bull
+- **Email Notifications**: Automated email sending for user actions
+- **Real-time Monitoring**: Queue statistics and job monitoring
 
 ## 🛠️ Technology Stack
 
 - **Backend**: Node.js, Express.js
 - **GraphQL**: Apollo Server Express
 - **Database**: MongoDB with Mongoose
+- **Queue System**: Redis with Bull
+- **Email Service**: Nodemailer
 - **Authentication**: JWT (jsonwebtoken)
 - **Password Hashing**: bcryptjs
 - **Environment**: dotenv
@@ -63,11 +68,35 @@ PORT=4000
 MONGODB_URI=mongodb://localhost:27017/express-graphql-demo
 JWT_SECRET=your-super-secret-jwt-key-here
 NODE_ENV=development
+
+# Redis Configuration
+REDIS_HOST=localhost
+REDIS_PORT=6379
+REDIS_PASSWORD=
+
+# Email Configuration (SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=your-email@gmail.com
+
+# Application Configuration
+APP_NAME=Express GraphQL Demo
+FRONTEND_URL=http://localhost:3000
 ```
 
-5. **Start MongoDB locally** (make sure MongoDB is running)
+5. **Start required services:**
+```bash
+# Start MongoDB (if not already running)
+mongod
 
-6. **Run the server:**
+# Start Redis (if not already running)
+redis-server
+```
+
+6. **Run the server (Terminal 1):**
 ```bash
 # Development mode with auto-restart
 npm run dev
@@ -84,6 +113,45 @@ npm start
 - **REST API Base URL**: http://localhost:4000/api
 - **Health Check**: http://localhost:4000/api/health
 - **API Info**: http://localhost:4000/api
+
+7. **Run the workers (Terminal 2):**
+```bash
+# Development mode with auto-restart
+npm run worker:dev
+
+# Production mode
+npm run worker
+```
+
+## 🔄 Queue System
+
+The application includes a robust queue system for background job processing:
+
+### Email Jobs
+- **Welcome Email**: Sent when new users register
+- **Voucher Email**: Sent when vouchers are issued to users
+- **Password Reset Email**: Sent for password reset requests
+- **Notification Email**: General notification emails
+
+### Notification Jobs
+- **Event Created**: Notify admins when new events are created
+- **Event Updated**: Notify admins when events are modified
+- **Event Deleted**: Notify admins when events are deleted
+- **Voucher Issued**: Notify admins when vouchers are issued
+- **Voucher Used**: Notify admins when vouchers are used
+- **System Maintenance**: Notify users about system maintenance
+
+### Queue Monitoring
+- **Queue Statistics**: `/api/queue/stats` - Get queue job counts
+- **Clean Jobs**: `/api/queue/clean` - Clean completed jobs
+- **Test Email**: `/api/queue/test-email` - Test email sending
+- **Test Notification**: `/api/queue/test-notification` - Test notification sending
+
+### Queue Configuration
+- **Redis**: Used as queue backend
+- **Bull**: Job queue management
+- **Retry Logic**: Failed jobs are retried with exponential backoff
+- **Job Cleanup**: Completed jobs are automatically cleaned up
 
 ## 📊 Database Schema
 

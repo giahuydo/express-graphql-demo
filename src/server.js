@@ -12,6 +12,7 @@ const swaggerSpecs = require('./config/swagger');
 const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
 const voucherRoutes = require('./routes/vouchers');
+const queueRoutes = require('./routes/queue');
 
 const app = express();
 
@@ -41,6 +42,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
 app.use('/api/auth', authRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/vouchers', voucherRoutes);
+app.use('/api/queue', queueRoutes);
 
 // Health check endpoint
 /**
