@@ -1,15 +1,16 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
-const Voucher = require('../models/Voucher');
-const Event = require('../models/Event');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
+const Voucher = require("../models/Voucher");
+const Event = require("../models/Event");
+const queueService = require("../services/queueService");
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
+const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret";
 
 const getUserFromToken = (req) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token) return null;
     return jwt.verify(token, JWT_SECRET);
   } catch (error) {
@@ -21,8 +22,8 @@ const requireAuth = (req, res, next) => {
   const decoded = getUserFromToken(req);
   if (!decoded) {
     return res.status(401).json({
-      message: 'Authentication required',
-      code: 'AUTH_REQUIRED'
+      message: "Authentication required",
+      code: "AUTH_REQUIRED",
     });
   }
   req.user = decoded;
@@ -30,10 +31,10 @@ const requireAuth = (req, res, next) => {
 };
 
 const requireAdmin = (req, res, next) => {
-  if (req.user.role !== 'ADMIN') {
+  if (req.user.role !== "ADMIN") {
     return res.status(403).json({
-      message: 'Admin access required',
-      code: 'ADMIN_REQUIRED'
+      message: "Admin access required",
+      code: "ADMIN_REQUIRED",
     });
   }
   next();
@@ -83,17 +84,17 @@ const requireAdmin = (req, res, next) => {
  *               items:
  *                 $ref: '#/components/schemas/Voucher'
  */
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { limit = 20, offset = 0, eventId, issuedTo, isUsed } = req.query;
     let query = {};
 
     if (eventId) query.eventId = eventId;
     if (issuedTo) query.issuedTo = issuedTo;
-    if (isUsed !== undefined) query.isUsed = isUsed === 'true';
+    if (isUsed !== undefined) query.isUsed = isUsed === "true";
 
     const vouchers = await Voucher.find(query)
-      .populate('eventId')
+      .populate("eventId")
       .sort({ createdAt: -1 })
       .limit(parseInt(limit))
       .skip(parseInt(offset));
@@ -102,7 +103,7 @@ router.get('/', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: `Failed to fetch vouchers: ${error.message}`,
-      code: 'FETCH_VOUCHERS_FAILED'
+      code: "FETCH_VOUCHERS_FAILED",
     });
   }
 });
@@ -134,20 +135,20 @@ router.get('/', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({
-        message: 'Invalid voucher ID',
-        code: 'INVALID_VOUCHER_ID'
+        message: "Invalid voucher ID",
+        code: "INVALID_VOUCHER_ID",
       });
     }
 
-    const voucher = await Voucher.findById(req.params.id).populate('eventId');
+    const voucher = await Voucher.findById(req.params.id).populate("eventId");
     if (!voucher) {
       return res.status(404).json({
-        message: 'Voucher not found',
-        code: 'VOUCHER_NOT_FOUND'
+        message: "Voucher not found",
+        code: "VOUCHER_NOT_FOUND",
       });
     }
 
@@ -155,7 +156,7 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: `Failed to fetch voucher: ${error.message}`,
-      code: 'FETCH_VOUCHER_FAILED'
+      code: "FETCH_VOUCHER_FAILED",
     });
   }
 });
@@ -187,13 +188,15 @@ router.get('/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/code/:code', async (req, res) => {
+router.get("/code/:code", async (req, res) => {
   try {
-    const voucher = await Voucher.findOne({ code: req.params.code.toUpperCase() }).populate('eventId');
+    const voucher = await Voucher.findOne({
+      code: req.params.code.toUpperCase(),
+    }).populate("eventId");
     if (!voucher) {
       return res.status(404).json({
-        message: 'Voucher not found',
-        code: 'VOUCHER_NOT_FOUND'
+        message: "Voucher not found",
+        code: "VOUCHER_NOT_FOUND",
       });
     }
 
@@ -201,7 +204,7 @@ router.get('/code/:code', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: `Failed to fetch voucher: ${error.message}`,
-      code: 'FETCH_VOUCHER_FAILED'
+      code: "FETCH_VOUCHER_FAILED",
     });
   }
 });
@@ -260,7 +263,7 @@ router.get('/code/:code', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post("/", requireAuth, requireAdmin, async (req, res) => {
   try {
     const { eventId, code, issuedTo } = req.body;
 
@@ -268,8 +271,8 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     const existingVoucher = await Voucher.findOne({ code: code.toUpperCase() });
     if (existingVoucher) {
       return res.status(400).json({
-        message: 'Voucher code already exists',
-        code: 'VOUCHER_CODE_EXISTS'
+        message: "Voucher code already exists",
+        code: "VOUCHER_CODE_EXISTS",
       });
     }
 
@@ -277,8 +280,8 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(400).json({
-        message: 'Event not found',
-        code: 'EVENT_NOT_FOUND'
+        message: "Event not found",
+        code: "EVENT_NOT_FOUND",
       });
     }
 
@@ -286,17 +289,19 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
       eventId,
       code: code.toUpperCase(),
       issuedTo,
-      isUsed: false
+      isUsed: false,
     });
-    
+
     const saved = await voucher.save();
-    const populatedVoucher = await Voucher.findById(saved._id).populate('eventId');
-    
+    const populatedVoucher = await Voucher.findById(saved._id).populate(
+      "eventId"
+    );
+
     res.status(201).json(populatedVoucher);
   } catch (error) {
     res.status(400).json({
       message: `Voucher creation failed: ${error.message}`,
-      code: 'VOUCHER_CREATION_FAILED'
+      code: "VOUCHER_CREATION_FAILED",
     });
   }
 });
@@ -339,52 +344,84 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/issue', requireAuth, requireAdmin, async (req, res) => {
+router.post("/issue", requireAuth, requireAdmin, async (req, res) => {
+  const session = await mongoose.startSession();
+  let event, voucher, eventDoc, voucherDoc;
+  const { eventId, issuedTo } = req.body;
+
   try {
-    const { eventId, issuedTo } = req.body;
+    session.startTransaction();
 
     // Check if event exists
-    const event = await Event.findById(eventId);
-    if (!event) {
-      return res.status(400).json({
-        message: 'Event not found',
-        code: 'EVENT_NOT_FOUND'
-      });
+    eventDoc = await Event.findById(eventId).session(session);
+    if (!eventDoc) {
+      throw new Error("EVENT_NOT_FOUND");
     }
 
     // Check if event has available quantity
-    if (event.issuedCount >= event.maxQuantity) {
-      return res.status(400).json({
-        message: 'Event has reached maximum voucher limit',
-        code: 'EVENT_FULL'
-      });
+    if (eventDoc.issuedCount >= eventDoc.maxQuantity) {
+      throw new Error("EVENT_FULL");
     }
 
     // Generate unique voucher code
-    const voucherCode = `VOUCHER-${Date.now()}-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
+    const voucherCode = `VOUCHER-${Date.now()}-${Math.random()
+      .toString(36)
+      .substr(2, 9)
+      .toUpperCase()}`;
 
-    const voucher = new Voucher({
+    voucherDoc = new Voucher({
       eventId,
       code: voucherCode,
       issuedTo,
-      isUsed: false
+      isUsed: false,
     });
 
-    const saved = await voucher.save();
+    voucher = await voucherDoc.save({ session });
 
     // Update event issued count
-    await Event.findByIdAndUpdate(eventId, {
-      $inc: { issuedCount: 1 }
-    });
+    event = await Event.findByIdAndUpdate(
+      eventId,
+      { $inc: { issuedCount: 1 } },
+      { session, new: true }
+    );
 
-    const populatedVoucher = await Voucher.findById(saved._id).populate('eventId');
-    
+    await session.commitTransaction();
+
+    try {
+      await queueService.addVoucherEmailJob({
+        email: issuedTo,
+        name: issuedTo,
+        voucherCode: voucherDoc.code,
+        eventName: event.name,
+        eventDescription: event.description,
+      });
+    } catch (emailErr) {
+      console.error("❌ Failed to queue voucher email:", emailErr);
+    }
+
+    const populatedVoucher = await Voucher.findById(voucher._id).populate(
+      "eventId"
+    );
+
     res.status(201).json(populatedVoucher);
   } catch (error) {
+    console.error("❌ Voucher issuance error:", error);
+    try {
+      await session.abortTransaction();
+    } catch (abortErr) {
+      console.error("❌ Failed to abort transaction:", abortErr);
+    }
+
+    let code = "VOUCHER_ISSUANCE_FAILED";
+    if (error.message === "EVENT_NOT_FOUND") code = error.message;
+    if (error.message === "EVENT_FULL") code = error.message;
+
     res.status(400).json({
       message: `Voucher issuance failed: ${error.message}`,
-      code: 'VOUCHER_ISSUANCE_FAILED'
+      code,
     });
+  } finally {
+    session.endSession();
   }
 });
 
@@ -423,27 +460,27 @@ router.post('/issue', requireAuth, requireAdmin, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:id/use', requireAuth, async (req, res) => {
+router.post("/:id/use", requireAuth, async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({
-        message: 'Invalid voucher ID',
-        code: 'INVALID_VOUCHER_ID'
+        message: "Invalid voucher ID",
+        code: "INVALID_VOUCHER_ID",
       });
     }
 
     const voucher = await Voucher.findById(req.params.id);
     if (!voucher) {
       return res.status(404).json({
-        message: 'Voucher not found',
-        code: 'VOUCHER_NOT_FOUND'
+        message: "Voucher not found",
+        code: "VOUCHER_NOT_FOUND",
       });
     }
 
     if (voucher.isUsed) {
       return res.status(400).json({
-        message: 'Voucher has already been used',
-        code: 'VOUCHER_ALREADY_USED'
+        message: "Voucher has already been used",
+        code: "VOUCHER_ALREADY_USED",
       });
     }
 
@@ -451,13 +488,13 @@ router.post('/:id/use', requireAuth, async (req, res) => {
       req.params.id,
       { isUsed: true, updatedAt: new Date() },
       { new: true, runValidators: true }
-    ).populate('eventId');
+    ).populate("eventId");
 
     res.json(updatedVoucher);
   } catch (error) {
     res.status(500).json({
       message: `Voucher usage failed: ${error.message}`,
-      code: 'VOUCHER_USAGE_FAILED'
+      code: "VOUCHER_USAGE_FAILED",
     });
   }
 });

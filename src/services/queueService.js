@@ -1,6 +1,5 @@
 const { emailQueue, notificationQueue } = require('../config/queue');
 const { EMAIL_JOB_TYPES } = require('../workers/emailWorker');
-const { NOTIFICATION_JOB_TYPES } = require('../workers/notificationWorker');
 const User = require('../models/User');
 
 class QueueService {
@@ -76,39 +75,6 @@ class QueueService {
       return job;
     } catch (error) {
       console.error('❌ Failed to add notification email job:', error);
-      throw error;
-    }
-  }
-
-  /**
-   * Add event created notification job to queue
-   */
-  async addEventCreatedNotificationJob(eventData) {
-    try {
-      // Get all admin emails
-      const admins = await User.find({ role: 'ADMIN', isActive: true }).select('email');
-      const adminEmails = admins.map(admin => admin.email);
-      
-      if (adminEmails.length === 0) {
-        console.log('⚠️ No admin emails found for event created notification');
-        return null;
-      }
-
-      const job = await notificationQueue.add(NOTIFICATION_JOB_TYPES.EVENT_CREATED, {
-        eventData: {
-          name: eventData.name,
-          description: eventData.description,
-        },
-        adminEmails,
-      }, {
-        priority: 2, // Medium priority
-        delay: 0, // Send immediately
-      });
-      
-      console.log(`✅ Event created notification job added: ${job.id}`);
-      return job;
-    } catch (error) {
-      console.error('❌ Failed to add event created notification job:', error);
       throw error;
     }
   }

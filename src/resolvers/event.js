@@ -100,17 +100,6 @@ const eventResolvers = {
         
         const saved = await event.save();
         
-        // Add event created notification job to queue
-        try {
-          await queueService.addEventCreatedNotificationJob({
-            name: saved.name,
-            description: saved.description,
-          });
-        } catch (notificationError) {
-          console.error('❌ Failed to queue event created notification:', notificationError);
-          // Don't fail event creation if notification fails
-        }
-        
         return transformEvent(saved.toObject());
       } catch (error) {
         throw new Error(`Event creation failed: ${error.message}`);
@@ -151,17 +140,6 @@ const eventResolvers = {
           throw new Error('Event not found');
         }
 
-        // Add event updated notification job to queue
-        try {
-          await queueService.addEventUpdatedNotificationJob({
-            name: updated.name,
-            description: updated.description,
-          });
-        } catch (notificationError) {
-          console.error('❌ Failed to queue event updated notification:', notificationError);
-          // Don't fail event update if notification fails
-        }
-
         return transformEvent(updated);
       } catch (error) {
         throw new Error(`Event update failed: ${error.message}`);
@@ -194,16 +172,6 @@ const eventResolvers = {
         // Delete associated vouchers
         await Voucher.deleteMany({ eventId: id });
 
-        // Add event deleted notification job to queue
-        try {
-          await queueService.addEventDeletedNotificationJob({
-            name: deleted.name,
-            description: deleted.description,
-          });
-        } catch (notificationError) {
-          console.error('❌ Failed to queue event deleted notification:', notificationError);
-          // Don't fail event deletion if notification fails
-        }
 
         return transformEvent(deleted.toObject());
       } catch (error) {

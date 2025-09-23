@@ -35,14 +35,6 @@ async function testQueueSystem() {
     });
     console.log(`✅ Notification email job added: ${notificationJob.id}\n`);
 
-    // Test 4: Add event created notification job
-    console.log('4️⃣ Testing event created notification job...');
-    const eventCreatedJob = await queueService.addEventCreatedNotificationJob({
-      name: 'Test Event',
-      description: 'This is a test event description'
-    });
-    console.log(`✅ Event created notification job added: ${eventCreatedJob?.id || 'No admins found'}\n`);
-
     // Test 5: Get queue statistics
     console.log('5️⃣ Getting queue statistics...');
     const stats = await queueService.getQueueStats();

@@ -19,24 +19,6 @@ const emailQueue = new Queue('email queue', {
   },
 });
 
-// Notification queue configuration
-const notificationQueue = new Queue('notification queue', {
-  redis: {
-    host: process.env.REDIS_HOST || 'localhost',
-    port: process.env.REDIS_PORT || 6379,
-    password: process.env.REDIS_PASSWORD || undefined,
-  },
-  defaultJobOptions: {
-    removeOnComplete: 20,
-    removeOnFail: 10,
-    attempts: 2,
-    backoff: {
-      type: 'fixed',
-      delay: 5000,
-    },
-  },
-});
-
 // Queue event listeners
 emailQueue.on('completed', (job, result) => {
   console.log(`✅ Email job ${job.id} completed:`, result);
@@ -50,19 +32,10 @@ emailQueue.on('stalled', (job) => {
   console.warn(`⚠️ Email job ${job.id} stalled`);
 });
 
-notificationQueue.on('completed', (job, result) => {
-  console.log(`✅ Notification job ${job.id} completed:`, result);
-});
-
-notificationQueue.on('failed', (job, err) => {
-  console.error(`❌ Notification job ${job.id} failed:`, err.message);
-});
-
 // Graceful shutdown
 process.on('SIGTERM', async () => {
   console.log('🔄 Shutting down queues gracefully...');
   await emailQueue.close();
-  await notificationQueue.close();
   await redisClient.quit();
   process.exit(0);
 });
@@ -70,13 +43,11 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   console.log('🔄 Shutting down queues gracefully...');
   await emailQueue.close();
-  await notificationQueue.close();
   await redisClient.quit();
   process.exit(0);
 });
 
 module.exports = {
   emailQueue,
-  notificationQueue,
   redisClient,
 };

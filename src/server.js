@@ -13,6 +13,7 @@ const authRoutes = require('./routes/auth');
 const eventRoutes = require('./routes/events');
 const voucherRoutes = require('./routes/vouchers');
 const queueRoutes = require('./routes/queue');
+// const {getRedisClient, initRedis, closeRedis } = require('./config/redis');
 
 const app = express();
 
@@ -30,7 +31,8 @@ app.use(cors({
 app.use(express.json());
 
 // Connect to MongoDB
-connectDB();
+ connectDB();
+// await initRedis();
 
 // Swagger Documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {

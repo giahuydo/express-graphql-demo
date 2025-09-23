@@ -304,13 +304,6 @@ const voucherResolvers = {
         session.endSession();
       }
     }
-
-
-
-
-
-
-    
   },
 
   Voucher: {

@@ -1,16 +1,21 @@
-const express = require('express');
-const jwt = require('jsonwebtoken');
-const mongoose = require('mongoose');
-const Event = require('../models/Event');
-const { isEventLocked, requestEditLock, releaseEditLock } = require('../utils/lockManager');
-const { paginateModel } = require('../utils/pagination');
+const express = require("express");
+const jwt = require("jsonwebtoken");
+const mongoose = require("mongoose");
+const Event = require("../models/Event");
+const {
+  isEventLocked,
+  requestEditLock,
+  releaseEditLock,
+  maintainEditLock
+} = require("../utils/lockManager");
+const { paginateModel } = require("../utils/pagination");
 
 const router = express.Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'fallback-secret';
+const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret";
 
 const getUserFromToken = (req) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const token = req.headers.authorization?.replace("Bearer ", "");
     if (!token) return null;
     return jwt.verify(token, JWT_SECRET);
   } catch (error) {
@@ -22,8 +27,8 @@ const requireAuth = (req, res, next) => {
   const decoded = getUserFromToken(req);
   if (!decoded) {
     return res.status(401).json({
-      message: 'Authentication required',
-      code: 'AUTH_REQUIRED'
+      message: "Authentication required",
+      code: "AUTH_REQUIRED",
     });
   }
   req.user = decoded;
@@ -31,10 +36,10 @@ const requireAuth = (req, res, next) => {
 };
 
 const requireAdmin = (req, res, next) => {
-  if (req.user.role !== 'ADMIN') {
+  if (req.user.role !== "ADMIN") {
     return res.status(403).json({
-      message: 'Admin access required',
-      code: 'ADMIN_REQUIRED'
+      message: "Admin access required",
+      code: "ADMIN_REQUIRED",
     });
   }
   next();
@@ -43,11 +48,11 @@ const requireAdmin = (req, res, next) => {
 // Transform function for events
 const transformEvent = (event) => {
   if (!event) return null;
-  
+
   return {
     ...event,
     availableQuantity: event.maxQuantity - event.issuedCount,
-    isFullyIssued: event.issuedCount >= event.maxQuantity
+    isFullyIssued: event.issuedCount >= event.maxQuantity,
   };
 };
 
@@ -99,35 +104,35 @@ const transformEvent = (event) => {
  *                 hasPreviousPage:
  *                   type: boolean
  */
-router.get('/', async (req, res) => {
+router.get("/", async (req, res) => {
   try {
     const { limit = 20, offset = 0, isActive, search } = req.query;
     const query = {};
-    
-    if (isActive !== undefined) query.isActive = isActive === 'true';
+
+    if (isActive !== undefined) query.isActive = isActive === "true";
     if (search) query.search = search;
 
     const result = await paginateModel({
       model: Event,
       query,
       transform: transformEvent,
-      searchableFields: ['name', 'description'],
+      searchableFields: ["name", "description"],
       fieldTypes: {
-        name: { type: 'string' },
-        description: { type: 'string' },
-        issuedCount: { type: 'number', operators: ['gte', 'lte', 'gt', 'lt'] },
-        maxQuantity: { type: 'number', operators: ['gte', 'lte', 'gt', 'lt'] }
+        name: { type: "string" },
+        description: { type: "string" },
+        issuedCount: { type: "number", operators: ["gte", "lte", "gt", "lt"] },
+        maxQuantity: { type: "number", operators: ["gte", "lte", "gt", "lt"] },
       },
       limit: parseInt(limit),
       offset: parseInt(offset),
-      sort: { createdAt: -1 }
+      sort: { createdAt: -1 },
     });
 
     res.json(result);
   } catch (error) {
     res.status(500).json({
       message: `Failed to fetch events: ${error.message}`,
-      code: 'FETCH_EVENTS_FAILED'
+      code: "FETCH_EVENTS_FAILED",
     });
   }
 });
@@ -159,20 +164,20 @@ router.get('/', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.get('/:id', async (req, res) => {
+router.get("/:id", async (req, res) => {
   try {
     if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
       return res.status(400).json({
-        message: 'Invalid event ID',
-        code: 'INVALID_EVENT_ID'
+        message: "Invalid event ID",
+        code: "INVALID_EVENT_ID",
       });
     }
 
     const event = await Event.findById(req.params.id).lean();
     if (!event) {
       return res.status(404).json({
-        message: 'Event not found',
-        code: 'EVENT_NOT_FOUND'
+        message: "Event not found",
+        code: "EVENT_NOT_FOUND",
       });
     }
 
@@ -180,7 +185,7 @@ router.get('/:id', async (req, res) => {
   } catch (error) {
     res.status(500).json({
       message: `Failed to fetch event: ${error.message}`,
-      code: 'FETCH_EVENT_FAILED'
+      code: "FETCH_EVENT_FAILED",
     });
   }
 });
@@ -233,19 +238,19 @@ router.get('/:id', async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/', requireAuth, requireAdmin, async (req, res) => {
+router.post("/", requireAuth, requireAdmin, async (req, res) => {
   try {
     const event = new Event({
       ...req.body,
-      issuedCount: 0
+      issuedCount: 0,
     });
-    
+
     const saved = await event.save();
     res.status(201).json(transformEvent(saved.toObject()));
   } catch (error) {
     res.status(400).json({
       message: `Event creation failed: ${error.message}`,
-      code: 'EVENT_CREATION_FAILED'
+      code: "EVENT_CREATION_FAILED",
     });
   }
 });
@@ -279,33 +284,33 @@ router.post('/', requireAuth, requireAdmin, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:id/lock', requireAuth, async (req, res) => {
+router.post("/:id/lock", requireAuth, async (req, res) => {
   try {
     const lockResult = await requestEditLock(req.params.id, req.user.userId);
-    
+
     if (lockResult.code === 200) {
       const event = await Event.findById(req.params.id).lean();
       res.json(transformEvent(event));
     } else if (lockResult.code === 409) {
       res.status(409).json({
         message: lockResult.message,
-        code: 'EVENT_LOCKED'
+        code: "EVENT_LOCKED",
       });
     } else if (lockResult.code === 404) {
       res.status(404).json({
-        message: 'Event not found',
-        code: 'EVENT_NOT_FOUND'
+        message: "Event not found",
+        code: "EVENT_NOT_FOUND",
       });
     } else {
       res.status(500).json({
-        message: 'Failed to acquire edit lock',
-        code: 'LOCK_FAILED'
+        message: "Failed to acquire edit lock",
+        code: "LOCK_FAILED",
       });
     }
   } catch (error) {
     res.status(500).json({
       message: `Event lock failed: ${error.message}`,
-      code: 'EVENT_LOCK_FAILED'
+      code: "EVENT_LOCK_FAILED",
     });
   }
 });
@@ -339,30 +344,298 @@ router.post('/:id/lock', requireAuth, async (req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
-router.post('/:id/unlock', requireAuth, async (req, res) => {
+router.post("/:id/unlock", requireAuth, async (req, res) => {
   try {
     const unlockResult = await releaseEditLock(req.params.id, req.user.userId);
-    
+
     if (unlockResult.code === 200) {
       const event = await Event.findById(req.params.id).lean();
       res.json(transformEvent(event));
     } else if (unlockResult.code === 403) {
       res.status(403).json({
         message: unlockResult.message,
-        code: 'NOT_EDITING_USER'
+        code: "NOT_EDITING_USER",
       });
     } else {
       res.status(500).json({
-        message: 'Failed to release edit lock',
-        code: 'UNLOCK_FAILED'
+        message: "Failed to release edit lock",
+        code: "UNLOCK_FAILED",
       });
     }
   } catch (error) {
     res.status(500).json({
       message: `Event unlock failed: ${error.message}`,
-      code: 'EVENT_UNLOCK_FAILED'
+      code: "EVENT_UNLOCK_FAILED",
     });
   }
 });
 
+/**
+ * @swagger
+ * /api/events/{eventId}/editable/release:
+ *   post:
+ *     summary: Release edit lock (editable)
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Event ID
+ *     responses:
+ *       200:
+ *         description: Event unlocked successfully (idempotent)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Event'
+ *       403:
+ *         description: You are not the editing user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       404:
+ *         description: Event not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+router.post("/:eventId/editable/release", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user.userId || req.user.id;
+
+    const result = await releaseEditLock(eventId, userId);
+
+    if (result.code === 200) {
+      return res.status(200).json({
+        message: result.message,
+        code: "RELEASE_EDIT_LOCK_SUCCESS",
+        data: result.event,
+      });
+    }
+
+    if (result.code === 403) {
+      return res.status(403).json({
+        message: result.message,
+        code: "NOT_EDITING_USER",
+      });
+    }
+    // 404
+    return res.status(404).json({
+      message: result.message,
+      code: "EVENT_NOT_FOUND",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: `Event editable release failed: ${error.message}`,
+      code: "EVENT_EDITABLE_RELEASE_FAILED",
+    });
+  }
+});
+
+// ---------- Swagger ----------
+/**
+ * @swagger
+ * /api/events/{eventId}/editable/me:
+ *   post:
+ *     summary: Request or renew edit lock for the current user
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Event ID
+ *     responses:
+ *       200:
+ *         description: Edit lock granted (created or renewed)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Event'
+ *       404:
+ *         description: Event not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: Event is already locked by another user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
+router.post("/:eventId/editable/me", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user.userId || req.user.id;
+
+    const result = await requestEditLock(eventId, userId);
+
+    if (result.code === 200) {
+      return res
+        .status(200)
+        .json({
+          message: result.message,
+          code: "REQUEST_EDIT_LOCK_SUCCESS",
+          data: result.event,
+        });
+    }
+    if (result.code === 404) {
+      return res
+        .status(404)
+        .json({ message: result.message, code: "EVENT_NOT_FOUND" });
+    }
+    if (result.code === 409) {
+      return res
+        .status(409)
+        .json({
+          message: result.message,
+          code: "EVENT_LOCKED_BY_ANOTHER_USER",
+        });
+    }
+
+    return res
+      .status(500)
+      .json({
+        message: "Failed to request edit lock",
+        code: "REQUEST_EDIT_LOCK_FAILED",
+      });
+  } catch (error) {
+    return res.status(500).json({
+      message: `Request edit lock failed: ${error.message}`,
+      code: "REQUEST_EDIT_LOCK_FAILED",
+    });
+  }
+});
+
+// ---------- Swagger ----------
+/**
+ * @swagger
+ * /api/events/{eventId}/editable/maintain:
+ *   post:
+ *     summary: Maintain (extend) the edit lock if the current user still owns it
+ *     tags: [Events]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: eventId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Event ID
+ *     responses:
+ *       200:
+ *         description: Edit lock extended successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 code:
+ *                   type: string
+ *                   example: MAINTAIN_EDIT_LOCK_SUCCESS
+ *                 data:
+ *                   $ref: '#/components/schemas/Event'
+ *       403:
+ *         description: You are not the editing user
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 code:
+ *                   type: string
+ *                   example: NOT_EDITING_USER
+ *       404:
+ *         description: Event not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 code:
+ *                   type: string
+ *                   example: EVENT_NOT_FOUND
+ *       409:
+ *         description: Edit lock expired
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 code:
+ *                   type: string
+ *                   example: EDIT_LOCK_EXPIRED
+ */
+
+// ---------- Route ----------
+router.post("/:eventId/editable/maintain", requireAuth, async (req, res) => {
+  try {
+    const { eventId } = req.params;
+    const userId = req.user.userId || req.user.id;
+
+    const result = await maintainEditLock(eventId, userId);
+
+    if (result.code === 200) {
+      return res.status(200).json({
+        message: result.message,
+        code: "MAINTAIN_EDIT_LOCK_SUCCESS",
+        data: result.event,
+      });
+    }
+
+    if (result.code === 403) {
+      return res.status(403).json({
+        message: result.message,
+        code: "NOT_EDITING_USER",
+      });
+    }
+
+    if (result.code === 404) {
+      return res.status(404).json({
+        message: result.message,
+        code: "EVENT_NOT_FOUND",
+      });
+    }
+
+    if (result.code === 409) {
+      return res.status(409).json({
+        message: result.message,
+        code: "EDIT_LOCK_EXPIRED",
+      });
+    }
+
+    return res.status(500).json({
+      message: "Maintain edit lock failed",
+      code: "EVENT_EDITABLE_MAINTAIN_FAILED",
+    });
+  } catch (error) {
+    return res.status(500).json({
+      message: `Maintain edit lock failed: ${error.message}`,
+      code: "EVENT_EDITABLE_MAINTAIN_FAILED",
+    });
+  }
+});
 module.exports = router;
