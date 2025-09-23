@@ -408,8 +408,8 @@ query GetEvents($limit: Int, $offset: Int, $isActive: Boolean, $search: String) 
 
 ### 6. Lock Event for Editing
 ```graphql
-mutation LockEventForEditing($id: ID!) {
-  lockEventForEditing(id: $id) {
+mutation requestEditLockForMe($id: ID!) {
+  requestEditLockForMe(id: $id) {
     id
     name
     editingBy

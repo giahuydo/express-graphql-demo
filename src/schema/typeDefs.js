@@ -98,8 +98,9 @@ const typeDefs = gql`
     deleteEvent(id: ID!): Boolean!
     activateEvent(id: ID!): Event!
     deactivateEvent(id: ID!): Event!
-    lockEventForEditing(id: ID!): Event!
-    unlockEvent(id: ID!): Event!
+    requestEditLockMe(input: RequestEditLockMeInput!): EditLockPayload!
+    maintainEditLockMe(eventId: ID!): EditLockPayload!
+    releaseEditLockMe(input: ReleaseEditLockMeInput!): EditLockPayload!
 
     # Voucher mutations
     createVoucher(input: CreateVoucherInput!): Voucher!
@@ -156,6 +157,23 @@ const typeDefs = gql`
     eventId: ID!
     issuedTo: String!
   }
+
+  input RequestEditLockMeInput {
+    eventId: ID!
+  }
+  input ReleaseEditLockMeInput {
+    eventId: ID!
+  }
+  
+  type EditLockPayload {
+    message: String!
+    code: String!
+    data: Event
+    lockUntil: String
+  }
+  
+  
+
 `;
 
 module.exports = typeDefs;
